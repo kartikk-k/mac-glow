@@ -14,20 +14,42 @@ system events (mic active → Listening, model working → Thinking, etc.).
 
 ## Modes
 
-Each mode is a distinct **motion**, not just a color — and all are calmly timed
-(nothing races):
+Each mode is a self-contained renderer with its **own settings section** in the
+Settings window. Modes that react to a real signal (audio, notifications, an
+assistant, keystrokes) include prototyping controls so you can drive them by hand.
 
-- **Breathing** — slow symmetric swell in/out. The calm, idle resting state.
-- **Thinking** — a bright comet of light gliding around the perimeter with a
-  soft tail (~7s per lap). Calm and intentional.
-- **Orbit** — two comets chasing on opposite sides, meeting and parting.
-- **Aurora Drift** — the light and its color slowly drift around the edges in
-  wide, soft lobes, like the northern lights (~14s).
-- **Scanner** — a soft bar sweeps calmly around the perimeter, a gentle radar.
-- **Heartbeat** — an organic double-thump (lub-dub) pulse of the whole frame.
+- **Breathing** — slow symmetric swell. The calm idle state.
+- **Scanner** — a soft bar sweeps calmly around the perimeter (a gentle radar).
+- **Progress** — light fills the perimeter 0→100% for a long task. Includes a
+  "Simulate 0→100%" button and a manual progress slider.
+- **Notification** — a bloom appears on the edge nearest where an alert came
+  from. Fire buttons for each corner.
+- **Focus Corner** — the glow gathers toward a chosen corner to pull your eye.
+- **Audio Reactive** — pulses with your microphone (asks permission), or a
+  built-in "Simulate audio" fallback.
+- **Flow** — warmth builds as you type and fades on pause (warm palette).
+- **Assistant** — three honest states: idle (breath) / working (sweep) /
+  needs-you (calm attention pulses).
+- **Push to Talk** — hold the button to listen, release to think, then settle.
+- **Confirmation** — a soft green success swell, or amber attention pulses.
+- **Notch Halo** — a glow hugging the camera notch (auto-detected; falls back to
+  a simulated top-center notch on Macs without one).
 
-The comet uses a continuous ray-cast perimeter, so it passes through the corners
-seamlessly (no wedge artifacts).
+All motion is calmly timed. Edges blend seam-free and the perimeter is a
+continuous ray-cast coordinate, so corners never show wedge artifacts.
+
+## Architecture
+
+- `Modes.swift` — the `GlowRenderer` protocol + `ModeControl` (how a mode
+  declares its own settings) + per-mode persisted `ModeStore`.
+- `Renderers.swift` — all 11 modes, each ~20-40 lines.
+- `GlowView.swift` — the shared per-pixel field (edge falloff, palette,
+  perimeter) that drives whatever renderer is active.
+- `SettingsWindow.swift` — rebuilds its lower section from the active mode's
+  `controls()`, so each mode gets a tailored panel.
+- `AudioLevel.swift` — mic level source (with simulate fallback) + notch detect.
+
+Adding a new mode = one class in `Renderers.swift` + one line in the registry.
 
 ## Features
 

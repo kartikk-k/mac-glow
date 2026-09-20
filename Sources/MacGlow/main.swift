@@ -54,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let modeItem = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
         let modeMenu = NSMenu()
         let currentMode = Settings.shared.modeID
-        for mode in GlowMode.all {
+        for mode in Settings.shared.allModes {
             let item = NSMenuItem(title: mode.name,
                                   action: #selector(selectMode(_:)), keyEquivalent: "")
             item.target = self
@@ -127,6 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let id = sender.representedObject as? String else { return }
         Settings.shared.modeID = id
         rebuildMenu()
+        settingsWC.rebuildModeSection()   // swap in this mode's custom controls
     }
 
     @objc private func openSettings() {

@@ -44,6 +44,8 @@ cat > "$CONTENTS/Info.plist" <<PLIST
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Mac Glow uses the microphone to make the edge glow react to sound in Audio Reactive and Push to Talk modes.</string>
 </dict>
 </plist>
 PLIST
