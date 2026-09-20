@@ -39,6 +39,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
+        // Mode submenu — the ambient "AI presence" states.
+        let modeItem = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
+        let modeMenu = NSMenu()
+        let currentMode = Settings.shared.modeID
+        for mode in GlowMode.all {
+            let item = NSMenuItem(title: mode.name,
+                                  action: #selector(selectMode(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = mode.id
+            item.image = NSImage(systemSymbolName: mode.symbol, accessibilityDescription: mode.name)
+            item.state = mode.id == currentMode ? .on : .off
+            modeMenu.addItem(item)
+        }
+        modeItem.submenu = modeMenu
+        menu.addItem(modeItem)
+
         // Gradient submenu with color-swatch icons.
         let gradientItem = NSMenuItem(title: "Gradient", action: nil, keyEquivalent: "")
         let gradientMenu = NSMenu()
@@ -95,6 +111,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func selectPalette(_ sender: NSMenuItem) {
         guard let name = sender.representedObject as? String else { return }
         Settings.shared.paletteName = name
+        rebuildMenu()
+    }
+
+    @objc private func selectMode(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        Settings.shared.modeID = id
         rebuildMenu()
     }
 

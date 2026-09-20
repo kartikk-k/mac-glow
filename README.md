@@ -1,24 +1,45 @@
 # Mac Glow
 
-A menu bar app that wraps your **entire screen** in a soft, breathing gradient
-glow along the edges. Pick a color palette, tune the animation, toggle on/off —
-all from the menu bar. A concept sketch.
+An ambient glow that wraps your **entire screen** in a soft gradient of light
+along the edges — an experiment in giving the Mac a peripheral "presence" layer.
+The glow has **modes**, each with its own motion signature, so it can express
+state (idle, listening, thinking, speaking) without a window. Prototype.
+
+## The idea
+
+The screen edge is always in your peripheral vision but never in the way — a
+perfect ambient status channel. Mac Glow turns it into one. Today it's driven by
+a menu picker; the modes are designed to eventually be driven by an assistant /
+system events (mic active → Listening, model working → Thinking, etc.).
+
+## Modes
+
+Each mode is a distinct **motion**, not just a color:
+
+- **Breathing** — slow symmetric swell in/out. The calm, idle resting state.
+- **Listening** — fast, shallow audio-meter shimmer dancing along the edges.
+- **Thinking** — a bright comet of light orbiting the perimeter with a tail.
+- **Speaking** — brightness waves radiating from the top edge, like sound.
+- **Focus** — dead still and dim; quiet / do-not-disturb.
 
 ## Features
 
 - **Full-screen edge glow** on every connected display (not per-window). No
   Accessibility permission needed.
-- **Gradient picker** in the menu bar: Ice Blue (default), Aurora, Sunset,
-  Emerald, Magenta, Mono White. Each shows a live swatch.
-- **Breathing animation** — the glow gently expands/contracts and brightens.
-- **Animation Settings** panel (⌘,) with live sliders:
-  - Breath speed (seconds per breath)
-  - Breath depth (how far it expands)
-  - Thickness (base band width)
-  - Intensity (overall opacity)
-  - Breathing on/off
-- Remembers your last on/off state, palette, and settings across launches.
+- **Seam-free corners** — edges blend so corners bloom smoothly (no frame lines).
+- **Gradient picker**: Ice Blue (default), Aurora, Sunset, Emerald, Magenta,
+  Mono White. Each shows a live swatch. Color is independent of mode.
+- **Animation Settings** panel (⌘,) with live sliders: breath speed, breath
+  depth, thickness, intensity, and a breathing on/off toggle.
+- Remembers your last on/off state, mode, palette, and settings across launches.
 - Menu bar only (no dock icon); click-through overlay never steals focus.
+
+## Ideas / roadmap
+
+- Wire modes to real signals (mic, assistant activity, task progress).
+- More ambient elements: glowing corner brackets, a perimeter progress ring,
+  a notch halo, an edge waveform reactive to real audio.
+- Per-mode color accents (success = green swell, error = red flashes).
 
 ## Build & run
 
