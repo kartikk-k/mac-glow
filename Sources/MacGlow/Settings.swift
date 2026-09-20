@@ -26,9 +26,9 @@ enum Palettes {
             NSColor(srgbRed: 0.55, green: 0.40, blue: 0.95, alpha: 1)
         ]),
         Palette(name: "Sunset", colors: [
-            NSColor(srgbRed: 1.00, green: 0.72, blue: 0.30, alpha: 1),
-            NSColor(srgbRed: 1.00, green: 0.42, blue: 0.42, alpha: 1),
-            NSColor(srgbRed: 0.85, green: 0.25, blue: 0.55, alpha: 1)
+            NSColor(srgbRed: 1.00, green: 0.78, blue: 0.42, alpha: 1),
+            NSColor(srgbRed: 1.00, green: 0.66, blue: 0.36, alpha: 1),
+            NSColor(srgbRed: 0.98, green: 0.55, blue: 0.32, alpha: 1)
         ]),
         Palette(name: "Emerald", colors: [
             NSColor(srgbRed: 0.55, green: 1.00, blue: 0.70, alpha: 1),
@@ -67,9 +67,29 @@ final class Settings {
     static let shared = Settings()
 
     static let didChange = Notification.Name("MacGlowSettingsDidChange")
+    // Fired when the set of target displays changes (needs windows added/removed).
+    static let displaysChanged = Notification.Name("MacGlowDisplaysChanged")
 
     private let d = UserDefaults.standard
     private func post() { NotificationCenter.default.post(name: Settings.didChange, object: nil) }
+
+    // Which displays to show the glow on. 0 = Primary only, 1 = All displays.
+    var displayTarget: Int {
+        get { d.object(forKey: "displayTarget") == nil ? 0 : d.integer(forKey: "displayTarget") }
+        set {
+            d.set(newValue, forKey: "displayTarget")
+            NotificationCenter.default.post(name: Settings.displaysChanged, object: nil)
+        }
+    }
+
+    // The screens the glow should render on, per displayTarget.
+    var targetScreens: [NSScreen] {
+        let all = NSScreen.screens
+        guard displayTarget == 0 else { return all }   // 1 = all
+        // Primary display = the one containing the menu bar (origin at (0,0)).
+        let primary = all.first { $0.frame.origin == .zero } ?? all.first
+        return primary.map { [$0] } ?? []
+    }
 
     // Selected gradient palette name.
     var paletteName: String {
@@ -88,6 +108,24 @@ final class Settings {
     var intensity: Double {
         get { value("intensity", default: 0.4) }
         set { d.set(newValue, forKey: "intensity"); post() }
+    }
+
+    // Sparkle particles (a global overlay on top of any mode).
+    var particles: Bool {
+        get { d.bool(forKey: "particles") }   // default off
+        set { d.set(newValue, forKey: "particles"); post() }
+    }
+    var particleDensity: Double {   // how many particles
+        get { value("particleDensity", default: 0.4) }
+        set { d.set(newValue, forKey: "particleDensity"); post() }
+    }
+    var particleSize: Double {
+        get { value("particleSize", default: 0.4) }
+        set { d.set(newValue, forKey: "particleSize"); post() }
+    }
+    var particleSpeed: Double {     // how fast they twinkle
+        get { value("particleSpeed", default: 0.5) }
+        set { d.set(newValue, forKey: "particleSpeed"); post() }
     }
 
     // Breathing on/off.
@@ -109,17 +147,16 @@ final class Settings {
         set { d.set(newValue, forKey: "breathDepth"); post() }
     }
 
-    // Live renderer instances, created once so animation state + trigger
-    // buttons persist. `renderer` returns the currently-selected one.
-    private lazy var renderers: [GlowRenderer] = Modes.all
+    // Live scene-mode instances, created once so trigger state persists.
+    private lazy var modes: [GlowSceneMode] = SceneModes.all
 
     var modeID: String {
-        get { d.string(forKey: "modeID") ?? renderers[0].id }
+        get { d.string(forKey: "modeID") ?? modes[0].id }
         set { d.set(newValue, forKey: "modeID"); post() }
     }
-    var allModes: [GlowRenderer] { renderers }
-    var renderer: GlowRenderer {
-        renderers.first { $0.id == modeID } ?? renderers[0]
+    var allModes: [GlowSceneMode] { modes }
+    var sceneMode: GlowSceneMode {
+        modes.first { $0.id == modeID } ?? modes[0]
     }
 
     private func value(_ key: String, default def: Double) -> Double {

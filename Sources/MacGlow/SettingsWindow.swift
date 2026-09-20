@@ -15,6 +15,8 @@ final class SettingsWindowController: NSWindowController {
     private var glowSwitch: NSSwitch!
     private var modePopup: NSPopUpButton!
     private var palettePopup: NSPopUpButton!
+    private var displayPopup: NSPopUpButton!
+    private var particlesCheck: NSButton!
     private var rootStack: NSStackView!
     private var modeSection: NSStackView!
 
@@ -99,12 +101,16 @@ final class SettingsWindowController: NSWindowController {
 
         modePopup = labeledPopup(title: "Mode",
                                  items: s.allModes.map { $0.name },
-                                 selected: s.renderer.name,
+                                 selected: s.sceneMode.name,
                                  action: #selector(modeChanged))
         palettePopup = labeledPopup(title: "Color",
                                     items: Palettes.all.map { $0.name },
                                     selected: s.paletteName,
                                     action: #selector(paletteChanged))
+        displayPopup = labeledPopup(title: "Display",
+                                    items: ["Primary only", "All displays"],
+                                    selected: s.displayTarget == 0 ? "Primary only" : "All displays",
+                                    action: #selector(displayChanged))
 
         rootStack.addArrangedSubview(separator())
 
@@ -119,6 +125,31 @@ final class SettingsWindowController: NSWindowController {
         addGlobalSlider("Intensity", min: 0.1, max: 1.0,
                         get: { self.s.intensity }, set: { self.s.intensity = $0 }) {
             String(format: "%.0f%%", $0 * 100) }
+
+        rootStack.addArrangedSubview(separator())
+        let pHdr = NSTextField(labelWithString: "PARTICLES")
+        pHdr.font = .systemFont(ofSize: 10, weight: .bold)
+        pHdr.textColor = .tertiaryLabelColor
+        rootStack.addArrangedSubview(pHdr)
+
+        particlesCheck = NSButton(checkboxWithTitle: "Sparkle particles",
+                                  target: self, action: #selector(particlesToggled))
+        particlesCheck.state = s.particles ? .on : .off
+        rootStack.addArrangedSubview(particlesCheck)
+
+        addGlobalSlider("Density", min: 0, max: 1,
+                        get: { self.s.particleDensity }, set: { self.s.particleDensity = $0 }) {
+            String(format: "%.0f%%", $0 * 100) }
+        addGlobalSlider("Particle size", min: 0, max: 1,
+                        get: { self.s.particleSize }, set: { self.s.particleSize = $0 }) {
+            String(format: "%.0f%%", $0 * 100) }
+        addGlobalSlider("Twinkle speed", min: 0.15, max: 1.5,
+                        get: { self.s.particleSpeed }, set: { self.s.particleSpeed = $0 }) {
+            String(format: "%.0f%%", $0 / 1.5 * 100) }
+    }
+
+    @objc private func particlesToggled() {
+        s.particles = particlesCheck.state == .on
     }
 
     // Rebuild the per-mode section from the active mode's controls().
@@ -127,7 +158,7 @@ final class SettingsWindowController: NSWindowController {
         modeSection.arrangedSubviews.forEach { $0.removeFromSuperview() }
         modeRows.removeAll()
 
-        let mode = s.renderer
+        let mode = s.sceneMode
         let store = ModeStore(mode.id)
 
         modeSection.addArrangedSubview(separator())
@@ -283,6 +314,10 @@ final class SettingsWindowController: NSWindowController {
         s.paletteName = name
     }
 
+    @objc private func displayChanged() {
+        s.displayTarget = displayPopup.indexOfSelectedItem
+    }
+
     @objc private func globalSliderChanged(_ sender: NSSlider) {
         let v = sender.doubleValue
         globalSetters[sender.tag](v)
@@ -315,7 +350,7 @@ final class SettingsWindowController: NSWindowController {
 
     private func syncControls() {
         glowSwitch?.state = isGlowOn() ? .on : .off
-        modePopup?.selectItem(withTitle: s.renderer.name)
+        modePopup?.selectItem(withTitle: s.sceneMode.name)
         palettePopup?.selectItem(withTitle: s.paletteName)
     }
 

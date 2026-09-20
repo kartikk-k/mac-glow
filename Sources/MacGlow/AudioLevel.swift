@@ -1,5 +1,6 @@
 import Cocoa
 import AVFoundation
+import ObjCGuard
 
 // MARK: - Audio level source
 //
@@ -45,26 +46,32 @@ final class AudioLevel {
     private func installTap() {
         let input = engine.inputNode
         let format = input.inputFormat(forBus: 0)
-        guard format.channelCount > 0 else { return }
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            guard let self, let ch = buffer.floatChannelData?[0] else { return }
-            let n = Int(buffer.frameLength)
-            var sum: Float = 0
-            for i in 0..<n { let v = ch[i]; sum += v * v }
-            let rms = n > 0 ? sqrt(sum / Float(n)) : 0
-            // Map RMS to a perceptual 0..1 (rough, tuned for speech/music).
-            let db = 20 * log10(max(1e-6, Double(rms)))          // ~ -60..0
-            let norm = max(0, min(1, (db + 55) / 55))
-            DispatchQueue.main.async { self.raw = norm }
+        // A 0 sample rate / 0 channel format means the input isn't ready or the
+        // mic is unavailable. Calling installTap then throws an NSObjC exception
+        // (SIGABRT). Bail to the synthetic source instead of crashing.
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            running = false; micActive = false
+            return
         }
-        do {
-            try engine.start()
-            running = true
-            micActive = true
-        } catch {
-            running = false
-            micActive = false
+        // installTap + start can raise ObjC NSExceptions (not Swift errors) on
+        // some hardware / permission states — catch via the ObjC shim so we
+        // degrade to the simulator instead of aborting the whole app.
+        let ok = MGRunCatching { [weak self] in
+            guard let self else { return }
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+                guard let self, let ch = buffer.floatChannelData?[0] else { return }
+                let n = Int(buffer.frameLength)
+                var sum: Float = 0
+                for i in 0..<n { let v = ch[i]; sum += v * v }
+                let rms = n > 0 ? sqrt(sum / Float(n)) : 0
+                let db = 20 * log10(max(1e-6, Double(rms)))
+                let norm = max(0, min(1, (db + 55) / 55))
+                DispatchQueue.main.async { self.raw = norm }
+            }
+            try? self.engine.start()
         }
+        running = ok && engine.isRunning
+        micActive = running
     }
 
     // Called each frame. `simulate` forces the synthetic source.
