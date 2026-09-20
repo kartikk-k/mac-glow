@@ -14,13 +14,20 @@ system events (mic active → Listening, model working → Thinking, etc.).
 
 ## Modes
 
-Each mode is a distinct **motion**, not just a color:
+Each mode is a distinct **motion**, not just a color — and all are calmly timed
+(nothing races):
 
 - **Breathing** — slow symmetric swell in/out. The calm, idle resting state.
-- **Listening** — fast, shallow audio-meter shimmer dancing along the edges.
-- **Thinking** — a bright comet of light orbiting the perimeter with a tail.
-- **Speaking** — brightness waves radiating from the top edge, like sound.
-- **Focus** — dead still and dim; quiet / do-not-disturb.
+- **Thinking** — a bright comet of light gliding around the perimeter with a
+  soft tail (~7s per lap). Calm and intentional.
+- **Orbit** — two comets chasing on opposite sides, meeting and parting.
+- **Aurora Drift** — the light and its color slowly drift around the edges in
+  wide, soft lobes, like the northern lights (~14s).
+- **Scanner** — a soft bar sweeps calmly around the perimeter, a gentle radar.
+- **Heartbeat** — an organic double-thump (lub-dub) pulse of the whole frame.
+
+The comet uses a continuous ray-cast perimeter, so it passes through the corners
+seamlessly (no wedge artifacts).
 
 ## Features
 
@@ -29,8 +36,8 @@ Each mode is a distinct **motion**, not just a color:
 - **Seam-free corners** — edges blend so corners bloom smoothly (no frame lines).
 - **Gradient picker**: Ice Blue (default), Aurora, Sunset, Emerald, Magenta,
   Mono White. Each shows a live swatch. Color is independent of mode.
-- **Animation Settings** panel (⌘,) with live sliders: breath speed, breath
-  depth, thickness, intensity, and a breathing on/off toggle.
+- **All-in-one Settings panel** (⌘,): glow on/off switch, mode picker, color
+  picker, and live sliders for breath speed, depth, thickness, and intensity.
 - Remembers your last on/off state, mode, palette, and settings across launches.
 - Menu bar only (no dock icon); click-through overlay never steals focus.
 

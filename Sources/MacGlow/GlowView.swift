@@ -28,22 +28,31 @@ final class GlowView: NSView {
         // use the user's chosen palette.
         let palette = mode.colorOverride.map { Palettes.palette(named: $0) } ?? s.palette
 
-        // Breathing phase for pulse/steady modes: eased sine (gentle at extremes).
-        let breath: CGFloat = s.breathing
-            ? CGFloat(sin(Double(phase) * 2 * .pi) * 0.5 + 0.5)
-            : 0.5
+        // A global "envelope" (0...1) drives whole-frame swell for the modes that
+        // pulse the entire glow together: Breathing (smooth sine) and Heartbeat
+        // (organic double-thump). Positional modes leave it at a steady mid value.
+        let phD = Double(phase)
+        var envelope = 0.5
+        switch mode.motion {
+        case .pulse:
+            envelope = sin(phD * 2 * .pi) * 0.5 + 0.5
+        case .heartbeat:
+            envelope = heartbeatEnvelope(phD)
+        default:
+            envelope = 0.5
+        }
+        let env = CGFloat(s.breathing || mode.motion != .pulse ? envelope : 0.5)
 
-        // Effective thickness expands with the breath (only for pulse motion).
+        // Effective thickness expands with the envelope for pulse/heartbeat.
         let base = CGFloat(s.thickness)
         let depth = CGFloat(s.breathDepth) * CGFloat(mode.depth)
-        let thickness: CGFloat = (mode.motion == .pulse)
-            ? base * (1 + depth * breath)
-            : base
+        let swells = (mode.motion == .pulse || mode.motion == .heartbeat)
+        let thickness: CGFloat = swells ? base * (1 + depth * env) : base
 
-        // Brightness swells slightly on the inhale for pulse modes.
+        // Brightness swells with the envelope for pulse/heartbeat too.
         let intensity = CGFloat(s.intensity) * CGFloat(mode.intensityScale)
-        let pulseBright = (mode.motion == .pulse) ? (0.78 + 0.22 * breath) : 1.0
-        let brightness = intensity * pulseBright
+        let envBright = swells ? (0.72 + 0.28 * env) : 1.0
+        let brightness = intensity * envBright
 
         // Render the glow as a per-pixel field into a low-res RGBA bitmap, then
         // let Core Graphics scale it up — the scaling itself adds smoothness.
@@ -65,9 +74,7 @@ final class GlowView: NSView {
         let lastStop = stops.count - 1
 
         let motion = mode.motion
-        let ph = Double(phase)                 // 0...1 per cycle
-        let wD = Double(w - 1), hD = Double(h - 1)
-        let cx = wD / 2, cy = hD / 2
+        let ph = phD                           // 0...1 per cycle
 
         maskBuffer.withUnsafeMutableBufferPointer { buf in
             for y in 0..<h {
@@ -88,53 +95,60 @@ final class GlowView: NSView {
                     // Distance used for color sampling (nearest edge still fine here).
                     let t = min(tx, ty)
 
-                    // Perimeter position 0...1 (used by orbit/ripple/flicker).
-                    // atan2 gives angle; map to a clockwise 0..1 starting at top.
-                    let ang = atan2(Double(y) - cy, Double(x) - cx)
-                    let peri = (ang / (2 * .pi)) + 0.5                    // 0...1
+                    // Perimeter position measured by arc length so a comet travels
+                    // at constant visual speed on every edge (atan2 alone would
+                    // speed up on the short edges). peri is 0..1 clockwise from
+                    // the top-left, weighted by the actual edge lengths.
+                    let peri = perimeterPosition(x: x, y: y, w: w, h: h)
+
+                    // Extra color offset for the drift mode (set below).
+                    var colorShift = 0.0
 
                     // --- Motion modulation ---
-                    // Each mode has a DISTINCT motion signature, independent of color.
+                    // Each mode has a DISTINCT, calmly-timed motion signature.
                     switch motion {
-                    case .pulse, .steady:
-                        break // handled via thickness/brightness already
+                    case .pulse, .heartbeat:
+                        break // whole-frame envelope handled above
 
-                    case .flicker:
-                        // "Listening": fast, tight audio-meter shimmer. Layered
-                        // sines at different frequencies fake a live waveform that
-                        // dances along the edges without expanding.
-                        let p = ph * 2 * .pi
-                        let s1 = sin(peri * 22 + p * 3)
-                        let s2 = sin(peri * 47 - p * 5)
-                        let s3 = sin(peri * 9  + p * 2)
-                        let wave = (s1 * 0.5 + s2 * 0.3 + s3 * 0.2)       // -1...1
-                        alpha *= (0.55 + 0.45 * (wave * 0.5 + 0.5))
+                    case .comet:
+                        // The winner: one bright comet glides around with a long,
+                        // soft tail. Slow `speed` keeps it calm, not frantic.
+                        alpha *= cometGlow(peri: peri, head: ph,
+                                           headSharp: 55, tailLen: 4.0,
+                                           floor: 0.26, tailWeight: 0.6)
 
-                    case .orbit:
-                        // "Thinking": a bright comet races around the perimeter,
-                        // with a fading tail — reads as active processing.
-                        var delta = abs(peri - ph)
-                        delta = min(delta, 1 - delta)                     // wrap
-                        let head = exp(-delta * delta * 90)               // tight head
-                        var tail = ph - peri
-                        if tail < 0 { tail += 1 }
-                        let trail = exp(-tail * 6) * 0.55                 // trailing glow
-                        // Keep a soft ambient floor so the frame stays present.
-                        alpha *= (0.28 + 1.0 * head + trail)
+                    case .dualComet:
+                        // Two comets chasing on opposite sides of the frame.
+                        let g1 = cometGlow(peri: peri, head: ph,
+                                           headSharp: 55, tailLen: 4.0,
+                                           floor: 0.0, tailWeight: 0.55)
+                        let g2 = cometGlow(peri: peri, head: ph + 0.5,
+                                           headSharp: 55, tailLen: 4.0,
+                                           floor: 0.0, tailWeight: 0.55)
+                        alpha *= (0.22 + max(g1, g2))
 
-                    case .ripple:
-                        // "Speaking": waves radiate from the top-center down both
-                        // sides, like sound emanating outward.
-                        var d = abs(peri - 0.0)                          // dist from top
-                        d = min(d, 1 - d)                                // 0 at top, .5 bottom
-                        let wave = 0.5 + 0.5 * sin(d * 14 - ph * 2 * .pi)
-                        alpha *= (0.4 + 0.6 * wave)
+                    case .drift:
+                        // Aurora: the light slowly breathes in soft, wide lobes
+                        // that drift around the frame, and the color itself shifts.
+                        let lobe = 0.5 + 0.5 * sin((peri * 2 - ph) * 2 * .pi)
+                        let lobe2 = 0.5 + 0.5 * sin((peri * 3 + ph) * 2 * .pi)
+                        alpha *= (0.45 + 0.55 * (lobe * 0.6 + lobe2 * 0.4))
+                        colorShift = 0.5 + 0.5 * sin((peri - ph) * 2 * .pi)
+
+                    case .scanner:
+                        // A soft, wide bar sweeps calmly around the perimeter —
+                        // symmetric (no tail), like a gentle radar.
+                        var d = abs(peri - ph)
+                        d = min(d, 1 - d)                                // wrap
+                        let bar = exp(-d * d * 30)                       // soft wide bar
+                        alpha *= (0.30 + 0.95 * bar)
                     }
 
                     let a = alpha * Double(brightness)
 
-                    // Sample the palette across the fade.
-                    let scaled = t * Double(lastStop)
+                    // Sample the palette across the fade (plus any drift offset).
+                    let tc = min(1.0, t + colorShift * 0.6)
+                    let scaled = tc * Double(lastStop)
                     let si = min(Int(scaled), max(0, lastStop - 1))
                     let sf = scaled - Double(si)
                     let r = cR[si] + (cR[si + 1] - cR[si]) * sf
@@ -170,6 +184,72 @@ final class GlowView: NSView {
     private func falloff(_ t: Double) -> Double {
         let e = 1.0 - (t * t * (3 - 2 * t))
         return e * e
+    }
+
+    // A comet: a bright head at `head` with a soft trailing tail, wrapping the
+    // perimeter. Returns a 0..~1.6 glow factor (floor + head + tail).
+    @inline(__always)
+    private func cometGlow(peri: Double, head: Double, headSharp: Double,
+                           tailLen: Double, floor: Double, tailWeight: Double) -> Double {
+        var delta = abs(peri - head.truncatingRemainder(dividingBy: 1))
+        delta = min(delta, 1 - delta)                       // wrap-around distance
+        let headGlow = exp(-delta * delta * headSharp)      // bright, tight head
+        // Trailing tail: measure how far `peri` lags *behind* the head.
+        var lag = head.truncatingRemainder(dividingBy: 1) - peri
+        if lag < 0 { lag += 1 }
+        let tail = exp(-lag * tailLen) * tailWeight
+        return floor + headGlow + tail
+    }
+
+    // Organic heartbeat envelope over one cycle (0..1): a strong "lub", a quick
+    // softer "dub", then rest. Reads as alive, distinct from a smooth breath.
+    @inline(__always)
+    private func heartbeatEnvelope(_ p: Double) -> Double {
+        func thump(_ x: Double, _ center: Double, _ width: Double) -> Double {
+            let d = (x - center) / width
+            return exp(-d * d)
+        }
+        let lub = thump(p, 0.10, 0.05)          // first, strongest beat
+        let dub = thump(p, 0.28, 0.06) * 0.7    // second, softer beat
+        return min(1.0, lub + dub)              // long quiet rest fills the remainder
+    }
+
+    // Perimeter position 0..1, measured by arc length (so travel speed is
+    // constant on every edge). Walks clockwise from the top-left corner.
+    @inline(__always)
+    // Map a pixel to a continuous 0..1 position around the rectangle perimeter
+    // by casting a ray from the center through the pixel and finding where it
+    // exits the rectangle, then measuring that exit point's arc length. This is
+    // continuous everywhere (no corner snap → no wedge artifact) and travels at
+    // roughly constant visual speed along each edge.
+    private func perimeterPosition(x: Int, y: Int, w: Int, h: Int) -> Double {
+        let W = Double(w - 1), H = Double(h - 1)
+        let cx = W / 2, cy = H / 2
+        var dx = Double(x) - cx
+        var dy = Double(y) - cy
+        if dx == 0 && dy == 0 { dx = 1e-6 }
+
+        // Find t so the ray (cx,cy)+t*(dx,dy) hits the rectangle border.
+        let tx = dx != 0 ? cx / abs(dx) : .greatestFiniteMagnitude
+        let ty = dy != 0 ? cy / abs(dy) : .greatestFiniteMagnitude
+        let t = min(tx, ty)
+        let ex = cx + dx * t          // exit point on the border
+        let ey = cy + dy * t
+
+        // Arc length of the exit point, walking clockwise from the top-left.
+        let perim = 2 * (W + H)
+        let eps = 0.5
+        var s: Double
+        if ey <= eps {                // top edge: left→right
+            s = ex
+        } else if ex >= W - eps {     // right edge: top→bottom
+            s = W + ey
+        } else if ey >= H - eps {     // bottom edge: right→left
+            s = W + H + (W - ex)
+        } else {                      // left edge: bottom→top
+            s = 2 * W + H + (H - ey)
+        }
+        return (s / perim).truncatingRemainder(dividingBy: 1)
     }
 }
 
@@ -258,8 +338,9 @@ final class GlowManager {
         elapsed += 1.0 / 60.0
         let s = Settings.shared
         let mode = s.mode
-        // Pulse/steady use the user's breath speed; motion modes use the mode's.
-        let speed: Double = (mode.motion == .pulse || mode.motion == .steady)
+        // Breathing (pulse) respects the user's Breath speed slider; every other
+        // mode uses its own calmly-tuned speed.
+        let speed: Double = (mode.motion == .pulse)
             ? max(0.3, s.breathSpeed)
             : max(0.3, mode.speed)
         let phase = CGFloat((elapsed.truncatingRemainder(dividingBy: speed)) / speed)

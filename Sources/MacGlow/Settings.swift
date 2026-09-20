@@ -61,10 +61,11 @@ enum Palettes {
 
 enum GlowMotion {
     case pulse      // slow symmetric in/out breathing
-    case flicker    // fast shallow reactive jitter (alert / listening)
-    case orbit      // a bright comet travels around the perimeter (working)
-    case ripple     // brightness waves radiate around the edges (speaking)
-    case steady     // no motion, static wash (focus / quiet)
+    case comet      // one bright comet glides around the perimeter (the winner)
+    case dualComet  // two comets chase on opposite sides, meeting and parting
+    case drift      // the color slowly drifts hue + position, like an aurora
+    case scanner    // a soft bar sweeps around the perimeter, calm radar
+    case heartbeat  // organic double-thump (lub-dub) pulse
 }
 
 struct GlowMode {
@@ -77,35 +78,42 @@ struct GlowMode {
     let intensityScale: Double  // multiplies base intensity
     let colorOverride: String?  // palette name to force, or nil = use user's palette
 
-    // Modes differ by MOTION first. Color is left to the user's palette by
-    // default (colorOverride: nil) so the mode reads through its movement.
+    // Modes differ by MOTION first, and every one is calmly timed — nothing
+    // races. Speeds below follow the feel of Apple's motion guidance: slow,
+    // eased, intentional. `speed` = seconds per full cycle.
 
     static let breathing = GlowMode(
         id: "breathing", name: "Breathing", symbol: "wind",
-        motion: .pulse, speed: 3.6, depth: 0.48, intensityScale: 1.0,
+        motion: .pulse, speed: 5.0, depth: 0.48, intensityScale: 1.0,
         colorOverride: nil)
 
-    static let listening = GlowMode(
-        id: "listening", name: "Listening", symbol: "waveform",
-        motion: .flicker, speed: 0.5, depth: 0.5, intensityScale: 1.15,
-        colorOverride: nil)
-
+    // The winner — now calmly paced (~7s per lap, was ~2.4s and felt frantic).
     static let thinking = GlowMode(
         id: "thinking", name: "Thinking", symbol: "sparkles",
-        motion: .orbit, speed: 2.4, depth: 1.0, intensityScale: 1.1,
+        motion: .comet, speed: 7.0, depth: 1.0, intensityScale: 1.1,
         colorOverride: nil)
 
-    static let speaking = GlowMode(
-        id: "speaking", name: "Speaking", symbol: "speaker.wave.2",
-        motion: .ripple, speed: 1.8, depth: 1.0, intensityScale: 1.15,
+    static let orbit = GlowMode(
+        id: "orbit", name: "Orbit", symbol: "circle.dashed",
+        motion: .dualComet, speed: 9.0, depth: 1.0, intensityScale: 1.05,
         colorOverride: nil)
 
-    static let focus = GlowMode(
-        id: "focus", name: "Focus", symbol: "moon.stars",
-        motion: .steady, speed: 1, depth: 0, intensityScale: 0.6,
+    static let aurora = GlowMode(
+        id: "aurora", name: "Aurora Drift", symbol: "sparkle",
+        motion: .drift, speed: 14.0, depth: 1.0, intensityScale: 1.0,
+        colorOverride: "Aurora")
+
+    static let scanner = GlowMode(
+        id: "scanner", name: "Scanner", symbol: "dot.radiowaves.left.and.right",
+        motion: .scanner, speed: 6.0, depth: 1.0, intensityScale: 1.05,
         colorOverride: nil)
 
-    static let all: [GlowMode] = [breathing, listening, thinking, speaking, focus]
+    static let heartbeat = GlowMode(
+        id: "heartbeat", name: "Heartbeat", symbol: "heart",
+        motion: .heartbeat, speed: 4.5, depth: 0.55, intensityScale: 1.1,
+        colorOverride: nil)
+
+    static let all: [GlowMode] = [breathing, thinking, orbit, aurora, scanner, heartbeat]
 
     static func byID(_ id: String) -> GlowMode {
         all.first { $0.id == id } ?? breathing

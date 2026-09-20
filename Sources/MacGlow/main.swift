@@ -18,6 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "sparkles",
                                    accessibilityDescription: "Glow")
         }
+        // Let the settings window drive the glow directly.
+        settingsWC.isGlowOn = { [weak self] in self?.manager.isEnabled ?? false }
+        settingsWC.setGlowOn = { [weak self] on in self?.setGlow(on) }
+
         rebuildMenu()
 
         // Restore the last on/off state across launches.
@@ -25,6 +29,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             manager.setEnabled(true)
             rebuildMenu()
         }
+    }
+
+    // Single place that flips the glow and keeps everything in sync.
+    private func setGlow(_ on: Bool) {
+        manager.setEnabled(on)
+        UserDefaults.standard.set(on, forKey: "glowEnabled")
+        rebuildMenu()
     }
 
     private func rebuildMenu() {
@@ -71,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         gradientItem.submenu = gradientMenu
         menu.addItem(gradientItem)
 
-        let settings = NSMenuItem(title: "Animation Settings…",
+        let settings = NSMenuItem(title: "Settings…",
                                   action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
@@ -103,9 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleGlow() {
-        manager.setEnabled(!manager.isEnabled)
-        UserDefaults.standard.set(manager.isEnabled, forKey: "glowEnabled")
-        rebuildMenu()
+        setGlow(!manager.isEnabled)
     }
 
     @objc private func selectPalette(_ sender: NSMenuItem) {
